@@ -10,32 +10,38 @@ alex_model = {
     'head': {
         'pos': [0, 0, 0],
         'size': [8, 8, 8],
-        'offset': [0, -4, 0]
+        'offset': [0, -4, 0],
+        'uv': {'x': 0, 'y': 0},
     },
     'body': {
         'pos': [0, 0, 0],
         'size': [8, 12, 4],
-        'offset': [0, 6, 0]
+        'offset': [0, 6, 0],
+        'uv': {'x': 16, 'y': 16},
     },
     'right_arm': {
         'pos': [-5, 2, 0],
         'size': [3, 12, 4],
-        'offset': [-0.5, 4, 0]
+        'offset': [-0.5, 4, 0],
+        'uv': {'x': 5*8, 'y': 2*8},
     },
     'left_arm': {
         'pos': [5, 2, 0],
         'size': [3, 12, 4],
-        'offset': [0.5, 4, 0]
+        'offset': [0.5, 4, 0],
+        'uv': {'x': 32, 'y': 48},
     },
     'right_leg': {
         'pos': [-2, 12, 0],
         'size': [4, 12, 4],
-        'offset': [0, 6, 0]
+        'offset': [0, 6, 0],
+        'uv': {'x': 0, 'y': 16},
     },
     'left_leg': {
         'pos': [2, 12, 0],
         'size': [4, 12, 4],
-        'offset': [0, 6, 0]
+        'offset': [0, 6, 0],
+        'uv': {'x': 16, 'y': 48},
     },
 }
 
@@ -249,18 +255,23 @@ def load(context,
         for element in data['elements']:
             #print('{}'.format(element['id']))
             cube = None
-            core_pos = [0,0,0]
-            core_pos = [0,0,0]
+            pos = [0,0,0]
+            pos = [0,0,0]
 
             if element['id'] in alex_model:
                 default = alex_model[element['id']]
-                core_pos = default['pos']
+                pos = default['pos']
                 if 'pos' in element:
-                    pos = [element['pos']['x'], element['pos']['y'], element['pos']['z']]
-                    core_pos = vec3_add(core_pos, pos)
-                core_offset = default['offset']
-                core_size = default['size']
-                cube = add_cube(core_pos, core_offset, [0,0,0], core_size, 0, element['id'], False)
+                    element_pos = [element['pos']['x'], element['pos']['y'], element['pos']['z']]
+                    pos = vec3_add(pos, element_pos)
+                offset = default['offset']
+                size = default['size']
+
+                cube = add_cube(pos, offset, [0,0,0], size, 0, element['id'], False)
+
+                if 'uv' in default:
+                    uv = [default['uv']['x'], default['uv']['y']]
+                    process_uv(cube, uv, size, [64,64], False)
 
                 if material is not None:
                     cube.data.materials.append(material)
@@ -269,7 +280,7 @@ def load(context,
                     cube.hide_set(True)
 
                 if 'children' in element:
-                    child_objects = process_children(element['children'], cube, core_pos, [0,0,0], material, skin_size)
+                    child_objects = process_children(element['children'], cube, pos, [0,0,0], material, skin_size)
 
                     objects.extend(child_objects)
 
