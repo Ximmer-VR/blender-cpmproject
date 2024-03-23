@@ -3,6 +3,46 @@ import json
 import bpy
 import tempfile
 import shutil
+import math
+
+alex_model = {
+    'head': {
+        'pos': [0, 0, 0],
+        'size': [8, 8, 8],
+        'offset': [0, -4, 0],
+        'uv': {'x': 0, 'y': 0},
+    },
+    'body': {
+        'pos': [0, 0, 0],
+        'size': [8, 12, 4],
+        'offset': [0, 6, 0],
+        'uv': {'x': 16, 'y': 16},
+    },
+    'right_arm': {
+        'pos': [-5, 2, 0],
+        'size': [3, 12, 4],
+        'offset': [-0.5, 4, 0],
+        'uv': {'x': 5*8, 'y': 2*8},
+    },
+    'left_arm': {
+        'pos': [5, 2, 0],
+        'size': [3, 12, 4],
+        'offset': [0.5, 4, 0],
+        'uv': {'x': 32, 'y': 48},
+    },
+    'right_leg': {
+        'pos': [-2, 12, 0],
+        'size': [4, 12, 4],
+        'offset': [0, 6, 0],
+        'uv': {'x': 0, 'y': 16},
+    },
+    'left_leg': {
+        'pos': [2, 12, 0],
+        'size': [4, 12, 4],
+        'offset': [0, 6, 0],
+        'uv': {'x': 16, 'y': 48},
+    },
+}
 
 data = {
   "removeBedOffset": False,
@@ -223,6 +263,99 @@ data = {
   }
 }
 
+child_template = {
+          "mirror": False,
+          "mcScale": 0.0,
+          "offset": {
+            "x": 0.0,
+            "y": -0.0,
+            "z": -0.0
+          },
+          "color": "0",
+          "hidden": False,
+          "texture": False,
+          "nameColor": 0,
+          "rotation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "show": True,
+          "scale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "textureSize": 1,
+          "size": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+          },
+          "pos": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "u": 0,
+          "singleTex": False,
+          "v": 0,
+          "extrude": False,
+          "recolor": False,
+          "name": "Head Origin",
+          "locked": False,
+          "glow": False
+        }
+
+def to_vec3(v):
+    return { 'x': v[0], 'y': v[1], 'z': v[2] }
+
+def zy(v):
+    return [v[0], -v[2], v[1]]
+
+def inv_zy(v):
+    return [v[0], v[2], -v[1]]
+
+def vec3_add(a, b):
+    return [a[0] + b[0], a[1] + b[1], a[2] + b[2]]
+
+def vec3_sub(a, b):
+    return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
+
+def add_child(child_obj, depth=0):
+    child_data = child_template.copy()
+
+    print('{} {}'.format(' '*depth, child_obj.name))
+
+    child_data['name'] = child_obj.name
+    child_data['pos'] = to_vec3(zy(child_obj.location))
+
+    size = [max(corner[i] for corner in child_obj.bound_box) - min(corner[i] for corner in child_obj.bound_box) for i in range(3)]
+    size[2] = -size[2]
+    child_data['size'] = to_vec3(zy(size))
+
+    rotation = child_obj.rotation_euler
+    rotation = [math.degrees(i) for i in rotation]
+    child_data['rotation'] = to_vec3(zy(rotation))
+
+    #offset = vec3_sub(child_obj.data.vertices[1].co, child_obj.location)
+    offset = child_obj.data.vertices[1].co
+    child_data['offset'] = to_vec3(zy(offset))
+
+    child_data['hidden'] = child_obj.hide_get()
+
+
+    for child in child_obj.children:
+        if 'children' not in child_data:
+            child_data['children'] = []
+
+        child_child_data = add_child(child, depth+1)
+        if child_child_data is not None:
+            child_data['children'].append(child_child_data)
+
+    return child_data
+
+
 def load(context,
          filepath,
          import_uvs = True,               # import face uvs
@@ -244,7 +377,27 @@ def load(context,
                 # go through the core parts
                 root_object = bpy.data.objects.get(element_id)
                 if root_object is None:
-                    raise Exception('Missing core object {}'.format(element_id))
+                    raise Exception('Missing core object \'{}\''.format(element_id))
+
+                if element_id in alex_model:
+                    model_pos = vec3_add(inv_zy(alex_model[element_id]['pos']), [0, 0, 24])
+                    print(model_pos)
+                    print(root_object.location)
+                    pos = vec3_sub(root_object.location, model_pos)
+                    print(pos)
+                    element['pos'] = to_vec3(zy(pos))
+
+                # if object is hidden disable
+                if root_object.hide_get():
+                    element['show'] = False
+
+                for child in root_object.children:
+                    if 'children' not in element:
+                        element['children'] = []
+
+                    child_data = add_child(child)
+                    if child_data is not None:
+                        element['children'].append(child_data)
 
             # write data
             with zip_file.open('config.json', 'w') as config_json:
