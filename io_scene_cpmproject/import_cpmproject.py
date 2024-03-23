@@ -261,6 +261,7 @@ def load(context,
             if element['id'] in alex_model:
                 default = alex_model[element['id']]
                 pos = default['pos']
+                pos = vec3_add(pos, [0, -24, 0])
                 if 'pos' in element:
                     element_pos = [element['pos']['x'], element['pos']['y'], element['pos']['z']]
                     pos = vec3_add(pos, element_pos)
