@@ -161,8 +161,8 @@ def process_uv(cube, uv, size, skinSize, mirror):
             [0+sz,        sz, -sz, sy, 0],  # right
             [sz+sx,       sz, -sx, sy, 0],  # front
 
-            [sz+sx, 0, sx, sz, 1],      # bottom
-            [sz,    0, sx, sz, 1],      # top
+            [sz+sx+sx, 0, -sx, sz, 3],      # bottom
+            [sz+sx,    0, -sx, sz, 3],      # top
         ]
     else:
         index2offset = [
