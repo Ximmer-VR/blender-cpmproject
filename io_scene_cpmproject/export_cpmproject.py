@@ -44,7 +44,7 @@ alex_model = {
     },
 }
 
-data = {
+data_template = {
   "removeBedOffset": False,
   "scaling": 0.0,
   "skinType": "slim",
@@ -273,7 +273,7 @@ child_template = {
           },
           "color": "0",
           "hidden": False,
-          "texture": False,
+          "texture": True,
           "nameColor": 0,
           "rotation": {
             "x": 0.0,
@@ -322,7 +322,7 @@ def vec3_add(a, b):
 def vec3_sub(a, b):
     return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
 
-def add_child(child_obj, depth=0):
+def add_child(child_obj, data, depth=0):
     child_data = child_template.copy()
 
     print('{} {}'.format(' '*depth, child_obj.name))
@@ -338,18 +338,45 @@ def add_child(child_obj, depth=0):
     rotation = [math.degrees(i) for i in rotation]
     child_data['rotation'] = to_vec3(zy(rotation))
 
-    #offset = vec3_sub(child_obj.data.vertices[1].co, child_obj.location)
     offset = child_obj.data.vertices[1].co
     child_data['offset'] = to_vec3(zy(offset))
 
-    child_data['hidden'] = child_obj.hide_get()
+    child_data['show'] = not child_obj.hide_get()
 
+    # faceUV
+    order = [
+        'west',
+        'south',
+        'east',
+        'north',
+        'down',
+        'up',
+    ]
 
+    mesh = child_obj.data
+    uv_layer = mesh.uv_layers.active.data
+    rot = 0
+    child_data['faceUV'] = {}
+    for i, face in enumerate(child_obj.data.polygons):
+        k = face.loop_start
+
+        uvs = uv_layer[k + (2 + rot) % 4].uv
+        uve = uv_layer[k + (0 + rot) % 4].uv
+        child_data['faceUV'][order[i]] = {}
+
+        child_data['faceUV'][order[i]]['sx'] = int(uvs[0] * data['skinSize']['x'])
+        child_data['faceUV'][order[i]]['sy'] = int((1 - uvs[1]) * data['skinSize']['y'])
+        child_data['faceUV'][order[i]]['ex'] = int(uve[0] * data['skinSize']['x'])
+        child_data['faceUV'][order[i]]['ey'] = int((1 - uve[1]) * data['skinSize']['y'])
+        child_data['faceUV'][order[i]]['rot'] = str(0)
+        child_data['faceUV'][order[i]]['autoUV'] = False
+
+    # children
     for child in child_obj.children:
         if 'children' not in child_data:
             child_data['children'] = []
 
-        child_child_data = add_child(child, depth+1)
+        child_child_data = add_child(child, data, depth+1)
         if child_child_data is not None:
             child_data['children'].append(child_child_data)
 
@@ -370,6 +397,18 @@ def load(context,
     try:
 
         with zipfile.ZipFile(cpmproject_file.name, "w") as zip_file:
+
+            # texture
+            skin = bpy.data.images.get('skin.png')
+
+            data = data_template.copy()
+            data['skinSize'] = {'x': skin.size[0], 'y': skin.size[1] }
+
+            if skin is not None:
+                skin_file = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+                skin_file.close()
+                skin.save_render(skin_file.name, scene=None)
+                zip_file.write(skin_file.name, 'skin.png')
 
             for element in data['elements']:
                 element_id = element['id']
@@ -395,22 +434,13 @@ def load(context,
                     if 'children' not in element:
                         element['children'] = []
 
-                    child_data = add_child(child)
+                    child_data = add_child(child, data)
                     if child_data is not None:
                         element['children'].append(child_data)
 
             # write data
             with zip_file.open('config.json', 'w') as config_json:
                 config_json.write(json.dumps(data).encode('utf-8'))
-
-            # texture
-            skin = bpy.data.images.get('skin.png')
-
-            if skin is not None:
-                skin_file = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
-                skin_file.close()
-                skin.save_render(skin_file.name, scene=None)
-                zip_file.write(skin_file.name, 'skin.png')
 
         # success, copy temp file to actual file
         shutil.move(cpmproject_file.name, filepath)
