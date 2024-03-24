@@ -4,6 +4,7 @@ import bpy
 import tempfile
 import shutil
 import math
+import copy
 
 alex_model = {
     'head': {
@@ -323,18 +324,18 @@ def vec3_sub(a, b):
     return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
 
 def add_child(child_obj, data, depth=0):
-    child_data = child_template.copy()
+    child_data = copy.deepcopy(child_template)
 
     print('{} {}'.format(' '*depth, child_obj.name))
 
     child_data['name'] = child_obj.name
-    child_data['pos'] = to_vec3(zy(child_obj.location))
+    child_data['pos'] = to_vec3(zy(child_obj.matrix_local.to_translation()))
 
     size = [max(corner[i] for corner in child_obj.bound_box) - min(corner[i] for corner in child_obj.bound_box) for i in range(3)]
     size[2] = -size[2]
     child_data['size'] = to_vec3(zy(size))
 
-    rotation = child_obj.rotation_euler
+    rotation = child_obj.matrix_local.to_euler()
     rotation = [math.degrees(i) for i in rotation]
     child_data['rotation'] = to_vec3(zy(rotation))
 
@@ -359,6 +360,8 @@ def add_child(child_obj, data, depth=0):
     child_data['faceUV'] = {}
     for i, face in enumerate(child_obj.data.polygons):
         k = face.loop_start
+
+        print('{} {}'.format(k, len(uv_layer)))
 
         uvs = uv_layer[k + (2 + rot) % 4].uv
         uve = uv_layer[k + (0 + rot) % 4].uv
@@ -401,7 +404,7 @@ def load(context,
             # texture
             skin = bpy.data.images.get('skin.png')
 
-            data = data_template.copy()
+            data = copy.deepcopy(data_template)
             data['skinSize'] = {'x': skin.size[0], 'y': skin.size[1] }
 
             if skin is not None:
